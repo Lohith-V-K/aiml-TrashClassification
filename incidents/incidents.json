@@ -1,0 +1,21 @@
+[
+  {
+    "incident_id": "inc_20261109_153541_9cf98b",
+    "timestamp": "2026-11-09 15:35:41",
+    "incident_status": "Pending Verification",
+    "person_detection_status": "Detected (1 person)",
+    "person_count": 1,
+    "detected_litter_categories": [
+      "Clear Plastic Bottle",
+      "Disposable Plastic Cup",
+      "Drink Can",
+      "Paper Cup",
+      "Plastic Bottle Cap"
+    ],
+    "litter_count": 9,
+    "original_image_path": "inc_20261109_153541_9cf98b/original.jpg",
+    "annotated_image_path": "inc_20261109_153541_9cf98b/annotated.jpg",
+    "review_notes": "",
+    "fine_issued": false
+  }
+]

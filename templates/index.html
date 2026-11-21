@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Street Litter & Person Detection</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <!-- FontAwesome for clean icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+<body>
+  <!-- Header Navbar -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="logo-icon"><i class="fa-solid fa-trash-can-arrow-up"></i></div>
+        <div class="brand-text">
+          <h1>Street Litter & Person Detection</h1>
+          <p class="subtitle">Dual YOLOv8 AI Detection & Incident Verification System</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div id="deviceBadge" class="system-badge">
+          <i class="fa-solid fa-microchip"></i>
+          <span id="deviceText">Checking Hardware...</span>
+        </div>
+        <nav class="nav-tabs">
+          <button class="nav-btn active" id="tabDetectBtn" onclick="switchTab('detect')">
+            <i class="fa-solid fa-camera"></i> Photo Detection
+          </button>
+          <button class="nav-btn" id="tabIncidentsBtn" onclick="switchTab('incidents')">
+            <i class="fa-solid fa-clipboard-check"></i> Incidents Log
+            <span class="badge-count" id="incidentsCountBadge">0</span>
+          </button>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-container">
+
+    <!-- ================= TAB 1: DETECTION ================= -->
+    <section id="detectSection" class="tab-content active">
+      <div class="grid-layout">
+        
+        <!-- Left: Upload & Controls Panel -->
+        <div class="panel control-panel">
+          <div class="panel-header">
+            <h2><i class="fa-solid fa-cloud-arrow-up"></i> Upload Photograph</h2>
+          </div>
+
+          <form id="uploadForm">
+            <!-- Dropzone -->
+            <div class="dropzone" id="dropzone">
+              <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.webp,.avif" hidden />
+              <div class="dropzone-content" id="dropzonePrompt">
+                <i class="fa-solid fa-images dropzone-icon"></i>
+                <p class="dropzone-title">Drag & drop your photograph here</p>
+                <p class="dropzone-sub">Supports JPG, JPEG, PNG, WEBP</p>
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">
+                  <i class="fa-solid fa-folder-open"></i> Browse Files
+                </button>
+              </div>
+
+              <!-- Selected File Preview Bar -->
+              <div class="selected-file-preview" id="selectedFilePreview" style="display: none;">
+                <img id="previewThumbnail" src="" alt="Preview" />
+                <div class="selected-file-info">
+                  <span id="selectedFileName" class="file-name">filename.jpg</span>
+                  <span id="selectedFileSize" class="file-size">0 KB</span>
+                </div>
+                <button type="button" class="btn-icon" onclick="clearSelectedFile()" title="Remove file">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Quick Samples Picker -->
+            <div class="samples-picker" id="samplesPickerWrapper">
+              <label for="sampleSelect"><i class="fa-solid fa-flask"></i> Or test with sample images:</label>
+              <div class="sample-chips" id="sampleChips">
+                <span class="loading-text">Loading sample images...</span>
+              </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="settings-group">
+              <div class="setting-item">
+                <div class="setting-label-row">
+                  <label for="confSlider"><i class="fa-solid fa-sliders"></i> Confidence Threshold</label>
+                  <span id="confValue" class="slider-val">0.25</span>
+                </div>
+                <input type="range" id="confSlider" min="0.10" max="0.90" step="0.05" value="0.25" />
+              </div>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary btn-block" id="analyzeBtn" disabled>
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Run Detection Models
+            </button>
+          </form>
+
+          <!-- Model Legend & Privacy Note -->
+          <div class="legend-card">
+            <h3><i class="fa-solid fa-circle-info"></i> Detection Legend</h3>
+            <div class="legend-items">
+              <div class="legend-item">
+                <span class="legend-box person-box"></span>
+                <div>
+                  <strong>Person Model (YOLOv8n COCO)</strong>
+                  <p>Red bounding boxes. Object-level detection only.</p>
+                </div>
+              </div>
+              <div class="legend-item">
+                <span class="legend-box litter-box"></span>
+                <div>
+                  <strong>Litter Model (best.pt - 18 classes)</strong>
+                  <p>Green bounding boxes with litter classification.</p>
+                </div>
+              </div>
+            </div>
+            <div class="privacy-note">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span><strong>Human-Review System:</strong> No facial recognition or personal identification. Flags potential incidents for human verification only. No automated fines are issued.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Results Panel -->
+        <div class="panel results-panel" id="resultsPanel">
+          <div class="panel-header">
+            <h2><i class="fa-solid fa-chart-pie"></i> Detection Results</h2>
+            <div id="resultsTimestamp" class="results-timestamp"></div>
+          </div>
+
+          <!-- Empty State -->
+          <div class="empty-state" id="emptyState">
+            <i class="fa-solid fa-camera-retro empty-icon"></i>
+            <h3>No Photograph Analyzed Yet</h3>
+            <p>Upload a photograph on the left or select a sample image to view dual-model litter and person detection results.</p>
+          </div>
+
+          <!-- Loading State -->
+          <div class="loading-state" id="loadingState" style="display: none;">
+            <div class="spinner"></div>
+            <h3>Running Dual Detection Models...</h3>
+            <p>Evaluating people via YOLOv8n and street litter via best.pt on GPU/CPU</p>
+          </div>
+
+          <!-- Results Content -->
+          <div class="results-content" id="resultsContent" style="display: none;">
+            
+            <!-- Decision Banner -->
+            <div id="decisionBanner" class="decision-banner">
+              <div class="decision-icon" id="decisionIcon"></div>
+              <div class="decision-text">
+                <h3 id="decisionTitle">Potential Littering Incident</h3>
+                <p id="decisionDesc">Person and litter both detected in the photograph.</p>
+              </div>
+              <div class="decision-badge" id="decisionBadge">Pending Verification</div>
+            </div>
+
+            <!-- Stored Incident Notification Banner -->
+            <div id="incidentSavedNotice" class="incident-saved-notice" style="display: none;">
+              <i class="fa-solid fa-circle-check"></i>
+              <span>Potential incident successfully stored in log with status: <strong>Pending Verification</strong>.</span>
+              <button class="btn btn-sm btn-outline" onclick="switchTab('incidents')">View Incidents Log</button>
+            </div>
+
+            <!-- Image View Mode Tabs -->
+            <div class="image-viewer-card">
+              <div class="image-viewer-header">
+                <div class="image-mode-toggles">
+                  <button class="btn-toggle active" id="btnShowAnnotated" onclick="setImageMode('annotated')">
+                    <i class="fa-solid fa-draw-polygon"></i> Annotated View
+                  </button>
+                  <button class="btn-toggle" id="btnShowOriginal" onclick="setImageMode('original')">
+                    <i class="fa-solid fa-image"></i> Original Image
+                  </button>
+                  <button class="btn-toggle" id="btnShowSplit" onclick="setImageMode('split')">
+                    <i class="fa-solid fa-table-columns"></i> Side-by-Side
+                  </button>
+                </div>
+                <a id="downloadAnnotatedLink" href="#" download="annotated_detection.jpg" class="btn btn-sm btn-secondary">
+                  <i class="fa-solid fa-download"></i> Save Image
+                </a>
+              </div>
+
+              <!-- Single Image View Container -->
+              <div class="image-display-single" id="singleImageViewer">
+                <img id="mainDisplayImg" src="" alt="Detection View" />
+              </div>
+
+              <!-- Side-by-Side Image View Container -->
+              <div class="image-display-split" id="splitImageViewer" style="display: none;">
+                <div class="split-col">
+                  <h4>Original Photograph</h4>
+                  <img id="splitOriginalImg" src="" alt="Original" />
+                </div>
+                <div class="split-col">
+                  <h4>Annotated (Red: Person, Green: Litter)</h4>
+                  <img id="splitAnnotatedImg" src="" alt="Annotated" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Metrics Summary Cards -->
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <div class="metric-icon red-icon"><i class="fa-solid fa-person"></i></div>
+                <div class="metric-body">
+                  <span class="metric-label">People Detected</span>
+                  <span class="metric-value" id="metricPersonCount">0</span>
+                </div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-icon green-icon"><i class="fa-solid fa-bottle-water"></i></div>
+                <div class="metric-body">
+                  <span class="metric-label">Litter Items</span>
+                  <span class="metric-value" id="metricLitterCount">0</span>
+                </div>
+              </div>
+              <div class="metric-card full-span">
+                <div class="metric-icon blue-icon"><i class="fa-solid fa-tags"></i></div>
+                <div class="metric-body">
+                  <span class="metric-label">Litter Categories Identified</span>
+                  <div class="category-tags" id="metricCategoriesList">
+                    <span class="empty-tag">None</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Detailed Detections Table -->
+            <div class="details-table-card">
+              <h3><i class="fa-solid fa-list-check"></i> Detailed Detections</h3>
+              <div class="table-responsive">
+                <table class="detections-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Type</th>
+                      <th>Class Label</th>
+                      <th>Confidence</th>
+                      <th>Bounding Box (x1, y1, x2, y2)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="detectionsTableBody">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ================= TAB 2: INCIDENTS LOG ================= -->
+    <section id="incidentsSection" class="tab-content" style="display: none;">
+      <div class="panel incidents-panel">
+        <div class="panel-header">
+          <div>
+            <h2><i class="fa-solid fa-clipboard-list"></i> Potential Incidents Review Log</h2>
+            <p class="panel-sub">Photographs flagged with both person and litter presence. Stored for human review with status: <strong>Pending Verification</strong>.</p>
+          </div>
+          <button class="btn btn-secondary" onclick="loadIncidents()">
+            <i class="fa-solid fa-rotate-right"></i> Refresh
+          </button>
+        </div>
+
+        <div id="incidentsEmptyState" class="empty-state" style="display: none;">
+          <i class="fa-solid fa-shield-check empty-icon"></i>
+          <h3>No Potential Incidents Logged</h3>
+          <p>When a photograph detects both a person and litter, it is automatically logged here with original and annotated images for human verification.</p>
+        </div>
+
+        <div class="incidents-grid" id="incidentsGrid">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Review Modal for Human Verification -->
+  <div class="modal-overlay" id="reviewModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-user-check"></i> Human Verification Review</h3>
+        <button class="btn-icon" onclick="closeReviewModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="modalIncidentId" />
+        <p class="modal-desc">This incident was flagged by the dual AI detector. Human review is required to verify validity. No fines are issued automatically.</p>
+        <div class="form-group">
+          <label>Verification Decision:</label>
+          <select id="modalStatusSelect" class="form-control">
+            <option value="Pending Verification">Pending Verification</option>
+            <option value="Verified Incident">Verified Incident (Confirmed by Reviewer)</option>
+            <option value="False Positive - Dismissed">False Positive (Dismissed)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Reviewer Notes:</label>
+          <textarea id="modalNotesText" class="form-control" rows="3" placeholder="Add human review remarks, contextual observations..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeReviewModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitReviewUpdate()">Save Verification</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
+
